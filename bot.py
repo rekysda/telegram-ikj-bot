@@ -11,7 +11,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-2.5-pro")
 
 MAX_TELEGRAM_MESSAGE_LENGTH = 4096
 MAX_GEMINI_REPLY_LENGTH = 8192
@@ -89,6 +89,10 @@ MENU_KEYBOARD = [
     ["3. Cek Loker", "4. Cek CV ATS"],
     ["5. Berbicara dengan Asisten IKJ"]
 ]
+
+def get_bot_username(application: Application):
+    # Get username for mention detection (run only once after start)
+    return application.bot.username if application.bot and application.bot.username else ""
 
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -194,13 +198,23 @@ async def send_long_message(update: Update, text: str):
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await show_menu(update, context)
 
+async def group_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Only respond if bot is mentioned
+    bot_username = context.bot.username
+    if update.message and update.message.text and ('@' + bot_username) in update.message.text:
+        await show_menu(update, context)
+        return MENU
+
 def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[
-            MessageHandler(filters.ALL & (~filters.UpdateType.EDITED), show_menu),
+            # Private chat: always show menu if any text (tanpa /start)
+            MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, show_menu),
             CommandHandler("menu", menu_command),
+            # Grup: hanya respon jika di-mention
+            MessageHandler(filters.TEXT & filters.ChatType.GROUPS, group_handler),
         ],
         states={
             MENU: [
