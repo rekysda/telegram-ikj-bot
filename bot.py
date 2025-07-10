@@ -84,15 +84,12 @@ HRD_QUESTIONS = [
     "30. Bagaimana sikap Anda terhadap perubahan di perusahaan?",
 ]
 
+# Ganti menu utama ke huruf A, B, C, D
 MENU_KEYBOARD = [
-    ["1. Pertanyaan Pencari Kerja", "2. Pertanyaan HRD"],
-    ["3. Cek Loker", "4. Cek CV ATS"],
-    ["5. Berbicara dengan Asisten IKJ"]
+    ["A. Pertanyaan Pencari Kerja", "B. Pertanyaan HRD"],
+    ["C. Cek Loker", "D. Cek CV ATS"],
+    ["E. Berbicara dengan Asisten IKJ"]
 ]
-
-def get_bot_username(application: Application):
-    # Get username for mention detection (run only once after start)
-    return application.bot.username if application.bot and application.bot.username else ""
 
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -103,27 +100,27 @@ async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().lower()
-    if text.startswith("1"):
+    if text.startswith("a"):
         await send_long_message(update, "Berikut 30 pertanyaan umum dari pencari kerja (Jobseeker):\n\n" + "\n".join(JOBSEEKER_QUESTIONS))
         await update.message.reply_text("Ketikkan nomor pertanyaan untuk mendapatkan solusi/jawaban dari Assisten AI IKJ2018, atau ketik /menu untuk kembali ke menu utama.")
         context.user_data['last_menu'] = "jobseeker"
         return MENU
-    elif text.startswith("2"):
+    elif text.startswith("b"):
         await send_long_message(update, "Berikut 30 pertanyaan umum dari HRD beserta cara menjawabnya:\n\n" + "\n".join(HRD_QUESTIONS))
         await update.message.reply_text("Ketikkan nomor pertanyaan HRD untuk mendapatkan contoh jawaban dari Assisten AI IKJ2018, atau ketik /menu untuk kembali ke menu utama.")
         context.user_data['last_menu'] = "hrd"
         return MENU
-    elif text.startswith("3"):
+    elif text.startswith("c"):
         await update.message.reply_text(
             "Silakan kirimkan data teks lowongan kerja yang ingin dicek keaslian/keamanannya. Assisten AI IKJ2018 akan membantu mengecek apakah loker tersebut real atau palsu."
         )
         return CEK_LOKER
-    elif text.startswith("4"):
+    elif text.startswith("d"):
         await update.message.reply_text(
             "Silakan copy-paste CV Anda dalam bentuk teks ke sini. Assisten AI IKJ2018 akan membantu mengecek apakah CV sudah ATS friendly dan memberikan saran perbaikan."
         )
         return CEK_ATS
-    elif text.startswith("5"):
+    elif text.startswith("e"):
         await update.message.reply_text(
             "Anda dapat langsung mengetikkan pertanyaan seputar HRD, karir, interview, CV, atau rekrutmen. Assisten AI IKJ2018 siap menjawab pertanyaan Anda sebagai konsultan HRD. Ketik /menu untuk kembali ke menu utama."
         )
@@ -134,11 +131,10 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def pertanyaan_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     menu_choice = context.user_data.get('last_menu', '')
-    q_num = None
     try:
         q_num = int(update.message.text.strip())
     except Exception:
-        pass
+        q_num = None
     if menu_choice == "jobseeker" and q_num and 1 <= q_num <= 30:
         question = JOBSEEKER_QUESTIONS[q_num - 1]
         prompt = f"Sebagai konsultan HRD profesional, berikan jawaban atau solusi singkat yang praktis, profesional, dan memberi semangat atas pertanyaan berikut: {question}"
@@ -199,7 +195,6 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await show_menu(update, context)
 
 async def group_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Only respond if bot is mentioned
     bot_username = context.bot.username
     if update.message and update.message.text and ('@' + bot_username) in update.message.text:
         await show_menu(update, context)
@@ -207,37 +202,23 @@ async def group_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
-
     conv_handler = ConversationHandler(
         entry_points=[
-            # Private chat: always show menu if any text (tanpa /start)
             MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, show_menu),
             CommandHandler("menu", menu_command),
-            # Grup: hanya respon jika di-mention
             MessageHandler(filters.TEXT & filters.ChatType.GROUPS, group_handler),
         ],
         states={
             MENU: [
-                MessageHandler(
-                    filters.TEXT & (~filters.COMMAND),
-                    menu_handler
-                ),
-                MessageHandler(
-                    filters.Regex(r"^\d+$"),
-                    pertanyaan_handler
-                ),
+                MessageHandler(filters.Regex(r"^\d+$"), pertanyaan_handler),
+                MessageHandler(filters.TEXT & (~filters.COMMAND), menu_handler),
             ],
             CEK_LOKER: [MessageHandler(filters.TEXT & (~filters.COMMAND), cek_loker_handler)],
-            CEK_ATS: [
-                MessageHandler(filters.TEXT & (~filters.COMMAND), cek_ats_handler)
-            ],
-            TALK_HRD: [
-                MessageHandler(filters.TEXT & (~filters.COMMAND), talk_hrd_handler)
-            ],
+            CEK_ATS: [MessageHandler(filters.TEXT & (~filters.COMMAND), cek_ats_handler)],
+            TALK_HRD: [MessageHandler(filters.TEXT & (~filters.COMMAND), talk_hrd_handler)],
         },
         fallbacks=[CommandHandler("menu", menu_command)],
     )
-
     application.add_handler(conv_handler)
     print("Bot is running...")
     application.run_polling()
